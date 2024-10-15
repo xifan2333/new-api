@@ -108,6 +108,9 @@ func InitOptionMap() {
 	common.OptionMap["StopOnSensitiveEnabled"] = strconv.FormatBool(constant.StopOnSensitiveEnabled)
 	common.OptionMap["SensitiveWords"] = constant.SensitiveWordsToString()
 	common.OptionMap["StreamCacheQueueLength"] = strconv.Itoa(constant.StreamCacheQueueLength)
+	common.OptionMap["LinuxDoClientId"] = common.LinuxDoClientId
+	common.OptionMap["LinuxDoClientSecret"] = common.LinuxDoClientSecret
+	common.OptionMap["LinuxDoOAuthEnabled"] = strconv.FormatBool(common.LinuxDoOAuthEnabled)
 
 	common.OptionMapRWMutex.Unlock()
 	loadOptionsFromDatabase()
@@ -327,6 +330,12 @@ func updateOptionMap(key string, value string) (err error) {
 		constant.SensitiveWordsFromString(value)
 	case "StreamCacheQueueLength":
 		constant.StreamCacheQueueLength, _ = strconv.Atoi(value)
+	case "LinuxDoClientId":
+		common.LinuxDoClientId = value
+	case "LinuxDoClientSecret":
+		common.LinuxDoClientSecret = value
+	case "LinuxDoOAuthEnabled":
+		common.LinuxDoOAuthEnabled, _ = strconv.ParseBool(value)
 	}
 	return err
 }

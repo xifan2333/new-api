@@ -342,3 +342,5 @@ func CacheGetChannel(id int) (*Channel, error) {
 	}
 	return c, nil
 }
+
+// 如果需要缓存 LinuxDo 相关的信息，可以在这里添加相应的函数

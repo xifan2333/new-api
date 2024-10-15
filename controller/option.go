@@ -42,8 +42,24 @@ func UpdateOption(c *gin.Context) {
 		return
 	}
 	switch option.Key {
+	case "TelegramOAuthEnabled":
+		if option.Value == "true" && common.TelegramBotToken == "" {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "无法启用 Telegram OAuth，请先填入 Telegram Bot Token 以及 Telegram Bot Name！",
+			})
+			return
+		}
+	case "EmailVerificationEnabled":
+		if option.Value == "true" && (common.SMTPServer == "" || common.SMTPAccount == "" || common.SMTPFrom == "" || common.SMTPToken == "") {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "无法启用邮箱验证，请先填入 SMTP 相关配置信息！",
+			})
+			return
+		}
 	case "GitHubOAuthEnabled":
-		if option.Value == "true" && common.GitHubClientId == "" {
+		if option.Value == "true" && (common.GitHubClientId == "" || common.GitHubClientSecret == "") {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "无法启用 GitHub OAuth，请先填入 GitHub Client Id 以及 GitHub Client Secret！",
@@ -51,7 +67,7 @@ func UpdateOption(c *gin.Context) {
 			return
 		}
 	case "EmailDomainRestrictionEnabled":
-		if option.Value == "true" && len(common.EmailDomainWhitelist) == 0 {
+		if option.Value == "true" && (len(common.EmailDomainWhitelist) == 0 || common.EmailDomainWhitelist == nil) {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "无法启用邮箱域名限制，请先填入限制的邮箱域名！",
@@ -59,7 +75,7 @@ func UpdateOption(c *gin.Context) {
 			return
 		}
 	case "WeChatAuthEnabled":
-		if option.Value == "true" && common.WeChatServerAddress == "" {
+		if option.Value == "true" && (common.WeChatServerAddress == "" || common.WeChatServerToken == "") {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "无法启用微信登录，请先填入微信登录相关配置信息！",
@@ -67,10 +83,18 @@ func UpdateOption(c *gin.Context) {
 			return
 		}
 	case "TurnstileCheckEnabled":
-		if option.Value == "true" && common.TurnstileSiteKey == "" {
+		if option.Value == "true" && (common.TurnstileSiteKey == "" || common.TurnstileSecretKey == "") {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "无法启用 Turnstile 校验，请先填入 Turnstile 校验相关配置信息！",
+			})
+			return
+		}
+	case "LinuxDoOAuthEnabled":
+		if option.Value == "true" && (common.LinuxDoClientId == "" || common.LinuxDoClientSecret == "") {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "无法启用 LinuxDo OAuth，请先填入 LinuxDo Client Id 以及 LinuxDo Client Secret！",
 			})
 			return
 		}

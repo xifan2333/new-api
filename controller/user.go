@@ -84,6 +84,7 @@ func setupLogin(user *model.User, c *gin.Context) {
 		Role:        user.Role,
 		Status:      user.Status,
 		Group:       user.Group,
+		LinuxDoId:   user.LinuxDoId, // 添加这行
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"message": "",

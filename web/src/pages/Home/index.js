@@ -104,6 +104,12 @@ const Home = () => {
                     </a>
                   </p>
                   <p>启动时间：{getStartTimeString()}</p>
+                  <p>
+                    LinuxDo 身份验证：
+                    {statusState?.status?.linuxdo_oauth === true
+                      ? '已启用'
+                      : '未启用'}
+                  </p>
                 </Card>
               </Col>
               <Col span={12}>
@@ -129,6 +135,12 @@ const Home = () => {
                   <p>
                     GitHub 身份验证：
                     {statusState?.status?.github_oauth === true
+                      ? '已启用'
+                      : '未启用'}
+                  </p>
+                  <p>
+                    LinuxDo 身份验证：
+                    {statusState?.status?.linuxdo_oauth === true
                       ? '已启用'
                       : '未启用'}
                   </p>

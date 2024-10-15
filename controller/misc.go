@@ -63,6 +63,8 @@ func GetStatus(c *gin.Context) {
 			"default_collapse_sidebar": common.DefaultCollapseSidebar,
 			"enable_online_topup":      constant.PayAddress != "" && constant.EpayId != "" && constant.EpayKey != "",
 			"mj_notify_enabled":        constant.MjNotifyEnabled,
+			"linuxdo_oauth":            common.LinuxDoOAuthEnabled,
+			"linuxdo_client_id":        common.LinuxDoClientId,
 			"chats":                    constant.Chats,
 		},
 	})

@@ -2,7 +2,7 @@ import React, { useContext, useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { UserContext } from '../context/User';
 import { API, getLogo, showError, showInfo, showSuccess, updateAPI } from '../helpers';
-import { onGitHubOAuthClicked } from './utils';
+import { onGitHubOAuthClicked, onLinuxDoOAuthClicked } from './utils';
 import Turnstile from 'react-turnstile';
 import {
   Button,
@@ -20,6 +20,7 @@ import TelegramLoginButton from 'react-telegram-login';
 import { IconGithubLogo } from '@douyinfe/semi-icons';
 import WeChatIcon from './WeChatIcon';
 import { setUserData } from '../helpers/data.js';
+import LinuxDoIcon from './LinuxDoIcon';
 
 const LoginForm = () => {
   const [inputs, setInputs] = useState({
@@ -214,7 +215,8 @@ const LoginForm = () => {
                 </div>
                 {status.github_oauth ||
                 status.wechat_login ||
-                status.telegram_oauth ? (
+                status.telegram_oauth ||
+                status.linuxdo_oauth ? (
                   <>
                     <Divider margin='12px' align='center'>
                       第三方登录
@@ -243,6 +245,15 @@ const LoginForm = () => {
                           style={{ color: 'rgba(var(--semi-green-5), 1)' }}
                           icon={<Icon svg={<WeChatIcon />} />}
                           onClick={onWeChatLoginClicked}
+                        />
+                      ) : (
+                        <></>
+                      )}
+                      {status.linuxdo_oauth ? (
+                        <Button
+                          type='primary'
+                          icon={<Icon svg={<LinuxDoIcon />} />}
+                          onClick={()=>{onLinuxDoOAuthClicked(status.linuxdo_client_id)}}
                         />
                       ) : (
                         <></>

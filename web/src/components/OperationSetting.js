@@ -10,7 +10,6 @@ import SettingsCreditLimit from '../pages/Setting/Operation/SettingsCreditLimit.
 import SettingsMagnification from '../pages/Setting/Operation/SettingsMagnification.js';
 
 import { API, showError, showSuccess } from '../helpers';
-import SettingsChats from '../pages/Setting/Operation/SettingsChats.js';
 
 const OperationSetting = () => {
   let [inputs, setInputs] = useState({
@@ -54,48 +53,45 @@ const OperationSetting = () => {
     Chats: "[]",
   });
 
-  let [loading, setLoading] = useState(false);
+  let [loading, setLoading] = useState(true); // 初始状态设为 true
 
   const getOptions = async () => {
-    const res = await API.get('/api/option/');
-    const { success, message, data } = res.data;
-    if (success) {
-      let newInputs = {};
-      data.forEach((item) => {
-        if (
-          item.key === 'ModelRatio' ||
-          item.key === 'GroupRatio' ||
-          item.key === 'UserUsableGroups' ||
-          item.key === 'CompletionRatio' ||
-          item.key === 'ModelPrice'
-        ) {
-          item.value = JSON.stringify(JSON.parse(item.value), null, 2);
-        }
-        if (
-          item.key.endsWith('Enabled') ||
-          ['DefaultCollapseSidebar'].includes(item.key)
-        ) {
-          newInputs[item.key] = item.value === 'true' ? true : false;
-        } else {
-          newInputs[item.key] = item.value;
-        }
-      });
+    try {
+      const res = await API.get('/api/option/');
+      const { success, data } = res.data;
+      if (success) {
+        let newInputs = {};
+        data.forEach((item) => {
+          if (
+            item.key === 'ModelRatio' ||
+            item.key === 'GroupRatio' ||
+            item.key === 'UserUsableGroups' ||
+            item.key === 'CompletionRatio' ||
+            item.key === 'ModelPrice'
+          ) {
+            item.value = JSON.stringify(JSON.parse(item.value), null, 2);
+          }
+          if (
+            item.key.endsWith('Enabled') ||
+            ['DefaultCollapseSidebar'].includes(item.key)
+          ) {
+            newInputs[item.key] = item.value === 'true' ? true : false;
+          } else {
+            newInputs[item.key] = item.value;
+          }
+        });
 
-      setInputs(newInputs);
-    } else {
-      showError(message);
+        setInputs(newInputs);
+      }
+    } catch (error) {
+      console.error('获取选项失败:', error);
     }
   };
+
   async function onRefresh() {
-    try {
-      setLoading(true);
-      await getOptions();
-      showSuccess('刷新成功');
-    } catch (error) {
-      showError('刷新失败');
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true);
+    await getOptions();
+    setLoading(false);
   }
 
   useEffect(() => {
