@@ -8,6 +8,7 @@ import SettingsDataDashboard from '../pages/Setting/Operation/SettingsDataDashbo
 import SettingsMonitoring from '../pages/Setting/Operation/SettingsMonitoring.js';
 import SettingsCreditLimit from '../pages/Setting/Operation/SettingsCreditLimit.js';
 import SettingsMagnification from '../pages/Setting/Operation/SettingsMagnification.js';
+import SettingsChats from '../pages/Setting/Operation/SettingsChats.js';
 
 import { API, showError, showSuccess } from '../helpers';
 
