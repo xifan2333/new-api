@@ -64,7 +64,7 @@ func getAndValidateTextRequest(c *gin.Context, relayInfo *relaycommon.RelayInfo)
 	return textRequest, nil
 }
 
-func TextHelper(c *gin.Context) *dto.OpenAIErrorWithStatusCode {
+func TextHelper(c *gin.Context) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 
 	relayInfo := relaycommon.GenRelayInfo(c)
 
@@ -76,6 +76,7 @@ func TextHelper(c *gin.Context) *dto.OpenAIErrorWithStatusCode {
 	}
 
 	// map model name
+	isModelMapped := false
 	modelMapping := c.GetString("model_mapping")
 	//isModelMapped := false
 	if modelMapping != "" && modelMapping != "{}" {
@@ -85,6 +86,7 @@ func TextHelper(c *gin.Context) *dto.OpenAIErrorWithStatusCode {
 			return service.OpenAIErrorWrapperLocal(err, "unmarshal_model_mapping_failed", http.StatusInternalServerError)
 		}
 		if modelMap[textRequest.Model] != "" {
+			isModelMapped = true
 			textRequest.Model = modelMap[textRequest.Model]
 			// set upstream model name
 			//isModelMapped = true
@@ -129,7 +131,11 @@ func TextHelper(c *gin.Context) *dto.OpenAIErrorWithStatusCode {
 	if openaiErr != nil {
 		return openaiErr
 	}
-
+	defer func() {
+		if openaiErr != nil {
+			returnPreConsumedQuota(c, relayInfo, userQuota, preConsumedQuota)
+		}
+	}()
 	includeUsage := false
 	// 判断用户是否需要返回使用情况
 	if textRequest.StreamOptions != nil && textRequest.StreamOptions.IncludeUsage {
@@ -159,41 +165,54 @@ func TextHelper(c *gin.Context) *dto.OpenAIErrorWithStatusCode {
 	adaptor.Init(relayInfo)
 	var requestBody io.Reader
 
-	convertedRequest, err := adaptor.ConvertRequest(c, relayInfo, textRequest)
-	if err != nil {
-		return service.OpenAIErrorWrapperLocal(err, "convert_request_failed", http.StatusInternalServerError)
+	if relayInfo.ChannelType == common.ChannelTypeOpenAI && !isModelMapped {
+		body, err := common.GetRequestBody(c)
+		if err != nil {
+			return service.OpenAIErrorWrapperLocal(err, "get_request_body_failed", http.StatusInternalServerError)
+		}
+		requestBody = bytes.NewBuffer(body)
+	} else {
+		convertedRequest, err := adaptor.ConvertRequest(c, relayInfo, textRequest)
+		if err != nil {
+			return service.OpenAIErrorWrapperLocal(err, "convert_request_failed", http.StatusInternalServerError)
+		}
+		jsonData, err := json.Marshal(convertedRequest)
+		if err != nil {
+			return service.OpenAIErrorWrapperLocal(err, "json_marshal_failed", http.StatusInternalServerError)
+		}
+		requestBody = bytes.NewBuffer(jsonData)
 	}
-	jsonData, err := json.Marshal(convertedRequest)
-	if err != nil {
-		return service.OpenAIErrorWrapperLocal(err, "json_marshal_failed", http.StatusInternalServerError)
-	}
-	requestBody = bytes.NewBuffer(jsonData)
 
 	statusCodeMappingStr := c.GetString("status_code_mapping")
+	var httpResp *http.Response
 	resp, err := adaptor.DoRequest(c, relayInfo, requestBody)
 	if err != nil {
 		return service.OpenAIErrorWrapper(err, "do_request_failed", http.StatusInternalServerError)
 	}
 
 	if resp != nil {
-		relayInfo.IsStream = relayInfo.IsStream || strings.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream")
-		if resp.StatusCode != http.StatusOK {
-			returnPreConsumedQuota(c, relayInfo, userQuota, preConsumedQuota)
-			openaiErr := service.RelayErrorHandler(resp)
+		httpResp = resp.(*http.Response)
+		relayInfo.IsStream = relayInfo.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
+		if httpResp.StatusCode != http.StatusOK {
+			openaiErr = service.RelayErrorHandler(httpResp)
 			// reset status code 重置状态码
 			service.ResetStatusCode(openaiErr, statusCodeMappingStr)
 			return openaiErr
 		}
 	}
 
-	usage, openaiErr := adaptor.DoResponse(c, resp, relayInfo)
+	usage, openaiErr := adaptor.DoResponse(c, httpResp, relayInfo)
 	if openaiErr != nil {
-		returnPreConsumedQuota(c, relayInfo, userQuota, preConsumedQuota)
 		// reset status code 重置状态码
 		service.ResetStatusCode(openaiErr, statusCodeMappingStr)
 		return openaiErr
 	}
-	postConsumeQuota(c, relayInfo, textRequest.Model, usage, ratio, preConsumedQuota, userQuota, modelRatio, groupRatio, modelPrice, getModelPriceSuccess, "")
+
+	if strings.HasPrefix(relayInfo.UpstreamModelName, "gpt-4o-audio") {
+		service.PostAudioConsumeQuota(c, relayInfo, usage.(*dto.Usage), ratio, preConsumedQuota, userQuota, modelRatio, groupRatio, modelPrice, getModelPriceSuccess, "")
+	} else {
+		postConsumeQuota(c, relayInfo, textRequest.Model, usage.(*dto.Usage), ratio, preConsumedQuota, userQuota, modelRatio, groupRatio, modelPrice, getModelPriceSuccess, "")
+	}
 	return nil
 }
 
