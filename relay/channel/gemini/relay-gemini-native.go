@@ -9,6 +9,7 @@ import (
 	relaycommon "one-api/relay/common"
 	"one-api/relay/helper"
 	"one-api/service"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -35,24 +36,21 @@ func GeminiTextGenerationHandler(c *gin.Context, resp *http.Response, info *rela
 		return nil, service.OpenAIErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError)
 	}
 
-	// 检查是否有候选响应
-	if len(geminiResponse.Candidates) == 0 {
-		return nil, &dto.OpenAIErrorWithStatusCode{
-			Error: dto.OpenAIError{
-				Message: "No candidates returned",
-				Type:    "server_error",
-				Param:   "",
-				Code:    500,
-			},
-			StatusCode: resp.StatusCode,
-		}
-	}
-
 	// 计算使用量（基于 UsageMetadata）
 	usage := dto.Usage{
 		PromptTokens:     geminiResponse.UsageMetadata.PromptTokenCount,
-		CompletionTokens: geminiResponse.UsageMetadata.CandidatesTokenCount,
+		CompletionTokens: geminiResponse.UsageMetadata.CandidatesTokenCount + geminiResponse.UsageMetadata.ThoughtsTokenCount,
 		TotalTokens:      geminiResponse.UsageMetadata.TotalTokenCount,
+	}
+
+	usage.CompletionTokenDetails.ReasoningTokens = geminiResponse.UsageMetadata.ThoughtsTokenCount
+
+	for _, detail := range geminiResponse.UsageMetadata.PromptTokensDetails {
+		if detail.Modality == "AUDIO" {
+			usage.PromptTokensDetails.AudioTokens = detail.TokenCount
+		} else if detail.Modality == "TEXT" {
+			usage.PromptTokensDetails.TextTokens = detail.TokenCount
+		}
 	}
 
 	// 直接返回 Gemini 原生格式的 JSON 响应
@@ -78,6 +76,8 @@ func GeminiTextGenerationStreamHandler(c *gin.Context, resp *http.Response, info
 
 	helper.SetEventStreamHeaders(c)
 
+	responseText := strings.Builder{}
+
 	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
 		var geminiResponse GeminiChatResponse
 		err := common.DecodeJsonStr(data, &geminiResponse)
@@ -92,18 +92,29 @@ func GeminiTextGenerationStreamHandler(c *gin.Context, resp *http.Response, info
 				if part.InlineData != nil && part.InlineData.MimeType != "" {
 					imageCount++
 				}
+				if part.Text != "" {
+					responseText.WriteString(part.Text)
+				}
 			}
 		}
 
 		// 更新使用量统计
 		if geminiResponse.UsageMetadata.TotalTokenCount != 0 {
 			usage.PromptTokens = geminiResponse.UsageMetadata.PromptTokenCount
-			usage.CompletionTokens = geminiResponse.UsageMetadata.CandidatesTokenCount
+			usage.CompletionTokens = geminiResponse.UsageMetadata.CandidatesTokenCount + geminiResponse.UsageMetadata.ThoughtsTokenCount
 			usage.TotalTokens = geminiResponse.UsageMetadata.TotalTokenCount
+			usage.CompletionTokenDetails.ReasoningTokens = geminiResponse.UsageMetadata.ThoughtsTokenCount
+			for _, detail := range geminiResponse.UsageMetadata.PromptTokensDetails {
+				if detail.Modality == "AUDIO" {
+					usage.PromptTokensDetails.AudioTokens = detail.TokenCount
+				} else if detail.Modality == "TEXT" {
+					usage.PromptTokensDetails.TextTokens = detail.TokenCount
+				}
+			}
 		}
 
 		// 直接发送 GeminiChatResponse 响应
-		err = helper.ObjectData(c, geminiResponse)
+		err = helper.StringData(c, data)
 		if err != nil {
 			common.LogError(c, err.Error())
 		}
@@ -117,12 +128,19 @@ func GeminiTextGenerationStreamHandler(c *gin.Context, resp *http.Response, info
 		}
 	}
 
-	// 计算最终使用量
-	usage.PromptTokensDetails.TextTokens = usage.PromptTokens
-	usage.CompletionTokens = usage.TotalTokens - usage.PromptTokens
+	// 如果usage.CompletionTokens为0，则使用本地统计的completion tokens
+	if usage.CompletionTokens == 0 {
+		str := responseText.String()
+		if len(str) > 0 {
+			usage = service.ResponseText2Usage(responseText.String(), info.UpstreamModelName, info.PromptTokens)
+		} else {
+			// 空补全，不需要使用量
+			usage = &dto.Usage{}
+		}
+	}
 
-	// 结束流式响应
-	helper.Done(c)
+	// 移除流式响应结尾的[Done]，因为Gemini API没有发送Done的行为
+	//helper.Done(c)
 
 	return usage, nil
 }
